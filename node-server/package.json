@@ -9,12 +9,14 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "node": "^20.19.3",
+    "server.js": "^1.0.0",
     "twilio": "^5.7.1"
-  }
+  },
+  "description": ""
 }
