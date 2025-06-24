@@ -21,8 +21,8 @@ export default function HomeScreen() {
 
   const lastLocationRef = useRef<any>(null);
   const unchangedTimeRef = useRef<number>(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const countdownRef = useRef<number | null>(null);
 
   const SOS_ENDPOINT = 'http://192.168.29.196:3000/api/trigger-sos';
   const emergencyContact = '+916395526762';

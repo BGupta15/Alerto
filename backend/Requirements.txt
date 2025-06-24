@@ -5,3 +5,4 @@ twilio
 streamlit
 pandas
 streamlit-autorefresh
+gunicorn
