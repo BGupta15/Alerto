@@ -13,6 +13,8 @@ import * as Haptics from 'expo-haptics';
 import axios from 'axios';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Voice from '@react-native-voice/voice';
+import { PermissionsAndroid, Platform } from 'react-native';
 
 export default function HomeScreen() {
   const [location, setLocation] = useState<any>(null);
@@ -22,10 +24,51 @@ export default function HomeScreen() {
   const lastLocationRef = useRef<any>(null);
   const unchangedTimeRef = useRef<number>(0);
   const intervalRef = useRef<number | null>(null);
-  const countdownRef = useRef<number | null>(null);
+  const countdownRef = useRef<number | null>(null);
 
   const SOS_ENDPOINT = 'http://192.168.29.196:3000/api/trigger-sos';
   const emergencyContact = '+916395526762';
+
+  const requestMicPermission = async () => {
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        Alert.alert('Permission needed', 'Microphone is required for voice SOS');
+      }
+    }
+  };
+
+  const onSpeechResults = (e: any) => {
+    const spoken = e.value[0].toLowerCase();
+    console.log('🎤 Heard:', spoken);
+
+    if (
+      spoken.includes('help') ||
+      spoken.includes('sos') ||
+      spoken.includes('emergency')
+    ) {
+      manualSOS(); // 🚨 Trigger SOS
+    }
+  };
+
+  const onSpeechError = (e: any) => {
+    console.log('❌ Voice Error:', e);
+    // Try restarting voice if it stops unexpectedly
+    setTimeout(() => {
+      startListening();
+    }, 1000);
+  };
+
+  const startListening = async () => {
+    try {
+      await Voice.start('en-US');
+    } catch (e) {
+      console.error('🔁 Voice start error:', e);
+    }
+  };
+
 
   const manualSOS = async () => {
     if (
@@ -123,7 +166,7 @@ export default function HomeScreen() {
   const triggerAlert = async (coords: any) => {
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } catch {}
+    } catch { }
     Vibration.vibrate([500, 500, 500]);
 
     if (Device.isDevice) {
@@ -153,6 +196,17 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
+    // Voice command listeners
+    Voice.onSpeechResults = onSpeechResults;
+    Voice.onSpeechError = onSpeechError;
+
+    // Ask mic permission and start listening
+    requestMicPermission().then(() => {
+      startListening(); // 🔁 Automatically start voice detection
+    });
+
+    // Ask for mic permission
+    requestMicPermission();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
@@ -184,7 +238,7 @@ export default function HomeScreen() {
           <Text style={styles.buttonText}>SOS Now</Text>
         </TouchableOpacity>
 
-        <View style={{ width: '100%', marginTop: 20}}>
+        <View style={{ width: '100%', marginTop: 20 }}>
           <Text style={{ color: '#bbb', fontSize: 14, textAlign: 'center' }}>
             {location
               ? `📍 Lat: ${location.latitude.toFixed(6)}, Lng: ${location.longitude.toFixed(6)}`
@@ -210,7 +264,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 8,
     marginHorizontal: 40,
-    height:"45%",
+    height: "45%",
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#1f1f1f',
