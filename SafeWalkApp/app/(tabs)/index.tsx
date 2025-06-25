@@ -17,6 +17,8 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Voice from '@react-native-voice/voice';
 import { Accelerometer } from 'expo-sensors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 export default function HomeScreen() {
   const [location, setLocation] = useState<any>(null);
@@ -29,7 +31,15 @@ export default function HomeScreen() {
   const countdownRef = useRef<number | null>(null);
 
   const SOS_ENDPOINT = 'http://192.168.29.196:3000/api/trigger-sos';
-  const emergencyContact = '+916395526762';
+  const [emergencyContacts, setEmergencyContacts] = useState<string[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const saved = await AsyncStorage.getItem('emergency_contacts');
+      if (saved) setEmergencyContacts(JSON.parse(saved));
+    })();
+  }, []);
+
 
   const requestMicPermission = async () => {
     if (Platform.OS === 'android') {
@@ -89,19 +99,26 @@ export default function HomeScreen() {
 
 
   const sendSOS = async (loc: any, notes: string) => {
+    if (emergencyContacts.length === 0) {
+      Alert.alert('No Contacts', 'Please add emergency contacts first.');
+      console.log(emergencyContacts)
+      return;
+    }
+
     try {
       await axios.post(SOS_ENDPOINT, {
         name: 'Test User',
         lat: loc.latitude,
         lon: loc.longitude,
-        contact: emergencyContact,
+        contacts: emergencyContacts, // Array
         notes,
       });
-      Alert.alert('SOS Sent', 'Emergency message was sent.');
+      Alert.alert('SOS Sent', 'Message sent to all contacts.');
     } catch (error) {
-      Alert.alert('SOS Failed', 'Could not send emergency alert.');
+      Alert.alert('SOS Failed', 'Could not send SOS.');
     }
   };
+
 
   const startTrip = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
@@ -279,14 +296,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   button: {
-    paddingVertical: 10,
+    paddingVertical: 7,
     paddingHorizontal: 25,
     borderRadius: 4,
     marginVertical: 10,
-    width: '60%',
+    width: '50%',
     borderWidth: 1,
     borderColor: '#2d2d2d',
-  },
+  }, 
   startButton: {
     backgroundColor: '#5a7edc',
   },
@@ -295,7 +312,7 @@ const styles = StyleSheet.create({
   },
   sosButton: {
     backgroundColor: '#5a7edc',
-  },
+  }, 
   disabledButton: {
     backgroundColor: '#808080',
   },

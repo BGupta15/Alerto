@@ -14,17 +14,20 @@ const client = twilio(accountSid, authToken);
 const twilioNumber = process.env.TWILIO_PHONE_NUMBER;
 
 app.post('/api/trigger-sos', async (req, res) => {
-  const { name, lat, lon, contact, notes } = req.body;
+  const { name, lat, lon, contacts, notes } = req.body; // `contacts` is now an array
 
   const message = `${name} started a SafeWalk trip.\nLocation: https://maps.google.com/?q=${lat},${lon}\nNotes: ${notes}`;
 
   try {
-    await client.messages.create({
-      body: message,
-      from: twilioNumber,
-      to: contact,
-    });
-    res.status(200).json({ success: true, message: 'SMS sent successfully' });
+    const sendPromises = contacts.map((contact) =>
+      client.messages.create({
+        body: message,
+        from: twilioNumber,
+        to: contact,
+      })
+    );
+    await Promise.all(sendPromises);
+    res.status(200).json({ success: true, message: 'SMS sent to all contacts' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message });
