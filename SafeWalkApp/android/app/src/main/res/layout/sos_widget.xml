@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="64dp"
+    android:layout_height="64dp"
+    android:background="@drawable/sos_widget_background">
+
+    <ImageButton
+        android:id="@+id/sosButton"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/ic_sos"
+        android:contentDescription="SOS"
+        android:background="@android:color/transparent"
+        android:scaleType="centerInside" />
+</FrameLayout>

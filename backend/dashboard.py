@@ -4,20 +4,30 @@ import sqlite3
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
-# Auto-refresh every 10 seconds
-st_autorefresh(interval=10000, key="auto-refresh")
-
 st.set_page_config(page_title="ALERTO Dashboard", layout="wide")
 st.title("🚨 ALERTO: Real-Time SOS Dashboard")
 
-# SQLite helper functions
+DB_PATH = "instance/alerts.db"
+
+# ----------------- DB Helpers ----------------- #
+def send_help(name, contact, targets):
+    for target in targets:
+        print(f"📤 Sending {target} help to {name} at {contact}")
+
 def get_connection():
-    return sqlite3.connect("instance/alerts.db")
+    return sqlite3.connect(DB_PATH)
 
 def fetch_alerts():
     conn = get_connection()
     query = "SELECT * FROM Alert ORDER BY timestamp DESC"
     df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df
+
+def fetch_alerts_by_contact(ref_id):
+    conn = get_connection()
+    query = "SELECT * FROM Alert WHERE contact = ? ORDER BY timestamp DESC"
+    df = pd.read_sql_query(query, conn, params=(ref_id,))
     conn.close()
     return df
 
@@ -33,16 +43,37 @@ def delete_alert(alert_id):
     conn.commit()
     conn.close()
 
-def send_help(name, contact, targets):
-    for target in targets:
-        print(f"📤 Sending {target} help to {name} at {contact}")
+# ----------------- UI Starts ----------------- #
+login_type = st.sidebar.selectbox("Login As", ["Admin", "User"])
 
+if login_type == "Admin":
+    admin_id = st.sidebar.text_input("Admin ID")
+    admin_pass = st.sidebar.text_input("Password", type="password")
 
+    if admin_id == "admin" and admin_pass == "admin123":
+        st_autorefresh(interval=10000, key="admin-refresh")
+        df = fetch_alerts()
+        st.success("Logged in as Admin ✅")
+    else:
+        st.warning("Enter valid Admin credentials to continue.")
+        st.stop()
 
-# Main logic
-df = fetch_alerts()
+elif login_type == "User":
+    user_id = st.sidebar.text_input("User ID")
+    user_pass = st.sidebar.text_input("Password", type="password")
+    ref_id = st.sidebar.text_input("Victim Contact Number")
 
-if not df.empty:
+    if user_id and user_pass and ref_id:
+        df = fetch_alerts_by_contact(ref_id)
+        st.success(f"Logged in as User ✅ - Viewing alerts for: {ref_id}")
+    else:
+        st.warning("Enter all user fields to continue.")
+        st.stop()
+
+# ----------------- Display Alerts ----------------- #
+if df.empty:
+    st.warning("No alerts found.")
+else:
     total_alerts = len(df)
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
     last_alert_time = df["timestamp"].iloc[0].strftime("%Y-%m-%d %H:%M:%S") if pd.notnull(df["timestamp"].iloc[0]) else "N/A"
@@ -62,15 +93,19 @@ if not df.empty:
             maps_url = f"https://www.google.com/maps/search/?api=1&query={row['lat']},{row['lon']}"
             st.markdown(f"[🌐 Open in Google Maps]({maps_url})", unsafe_allow_html=True)
 
+            # 🟢 YAHI PE paste karo ye block:
             col1, col2, col3 = st.columns(3)
+
             with col1:
                 if st.button("✅ Resolve", key=f"resolve_{row['id']}"):
                     resolve_alert(row['id'])
                     st.experimental_rerun()
+
             with col2:
                 if st.button("🗑️ Delete", key=f"delete_{row['id']}"):
                     delete_alert(row['id'])
                     st.experimental_rerun()
+
             with col3:
                 help_key = f"help_toggle_{row['id']}"
                 if help_key not in st.session_state:
@@ -94,13 +129,8 @@ if not df.empty:
                         if targets:
                             send_help(row['name'], row['contact'], targets)
                             st.success(f"Help sent to {', '.join(targets)} for {row['name']}")
-                            st.session_state[help_key] = False  # collapse after send
+                            st.session_state[help_key] = False
                         else:
                             st.warning("Select at least one recipient.")
 
-else:
-    st.warning("No alerts found.")
-
-st.info("This dashboard is for admins, police, NGOs, and families to monitor real-time SOS alerts.")
-
-# curl -X POST http://localhost:5000/api/trigger-sos -H "Content-Type: application/json" -d '{"name":"PrithviRaj Singh","timestamp":"2025-06-23 18:30:00","lat":15.2993,"lon":74.1240,"status":"Active","contact":"9923103255"}' 
+st.info("🔐 This dashboard allows admin or family users to view and manage real-time SOS alerts.")
