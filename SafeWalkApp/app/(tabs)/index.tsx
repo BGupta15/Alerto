@@ -53,6 +53,12 @@ export default function HomeScreen() {
     }
   };
 
+  const onSpeechEnd = () => {
+    console.log('🎤 Speech ended, restarting...');
+    startListening(); // 🔁 Restart listening to keep it alive
+  };
+
+
   const onSpeechError = (e: any) => {
     console.log('❌ Voice Error:', e);
     // Try restarting voice if it stops unexpectedly
@@ -64,10 +70,12 @@ export default function HomeScreen() {
   const startListening = async () => {
     try {
       await Voice.start('en-US');
+      console.log('🎤 Listening...');
     } catch (e) {
       console.error('🔁 Voice start error:', e);
     }
   };
+
 
 
   const manualSOS = async () => {
@@ -196,22 +204,22 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    // Voice command listeners
+    // Setup voice listeners
     Voice.onSpeechResults = onSpeechResults;
     Voice.onSpeechError = onSpeechError;
+    Voice.onSpeechEnd = onSpeechEnd;
 
-    // Ask mic permission and start listening
     requestMicPermission().then(() => {
-      startListening(); // 🔁 Automatically start voice detection
+      startListening(); // 🔁 Start listening
     });
 
-    // Ask for mic permission
-    requestMicPermission();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
+      Voice.destroy().then(Voice.removeAllListeners);
     };
   }, []);
+
 
   return (
     <ImageBackground source={require('../../assets/background.png')} style={styles.background}>
