@@ -1,43 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>ALERTO</title>
+  <meta charset="UTF-8" />
+  <title>Alerto - Map Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #121212;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #111;
       color: white;
-    }
-
-    .top-bar {
-      padding: 10px;
-      text-align: center;
-      background: #1f1f1f;
-      color: white;
-    }
-
-    .map-container {
       display: flex;
-      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 250px;
+      background-color: #1f1f1f;
+      padding: 20px;
+      box-shadow: 2px 0 10px rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .sidebar h2 {
+      margin: 0 0 20px;
+      color: #ff6f61;
+    }
+
+    .sidebar button {
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      color: white;
+      padding: 10px;
       margin-top: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .sidebar button:hover {
+      background-color: #444;
     }
 
     #map {
-      height: 85vh;
-      width: 90%;
-      border-radius: 10px;
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+      flex: 1;
+      height: 100%;
     }
 
     .leaflet-routing-container {
       background-color: rgba(33, 33, 33, 0.85) !important;
       color: white !important;
-      font-size: 16px !important;
+      font-size: 14px !important;
       border-radius: 10px;
       padding: 10px;
     }
@@ -45,25 +64,29 @@
 </head>
 <body>
 
-  <div class="top-bar">
-    <h2>Alerto!</h2>
+  <div class="sidebar">
+    <div>
+      <h2>🚨 ALERTO</h2>
+      <button onclick="locateUser()">📍 Center to User</button>
+      <button onclick="clearRoute()">🗑 Clear Route</button>
+    </div>
+    <p style="font-size: 12px; color: #888;">Safe today. Safer tomorrow.</p>
   </div>
 
-  <div class="map-container">
-    <div id="map"></div>
-  </div>
+  <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
   <script>
-    let map = L.map('map').setView([28.6139, 77.2090], 13); // Default center
+    let map = L.map('map').setView([28.6139, 77.2090], 13); // Default: Delhi
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    // Add the search/geocoder control
     L.Control.geocoder().addTo(map);
 
     let currentLocationMarker = null;
@@ -84,38 +107,46 @@
             .openPopup();
 
           map.setView([lat, lon], 15);
-
-          map.on('click', function(e) {
-            const destLatLng = e.latlng;
-
-            if (destinationMarker) map.removeLayer(destinationMarker);
-            if (routingControl) map.removeControl(routingControl);
-
-            destinationMarker = L.marker(destLatLng, { draggable: false })
-              .addTo(map)
-              .bindPopup("📍 Destination")
-              .openPopup();
-
-            routingControl = L.Routing.control({
-              waypoints: [
-                L.latLng(lat, lon),
-                destLatLng
-              ],
-              routeWhileDragging: false,
-              lineOptions: {
-                styles: [{ color: '#ff6f61', weight: 5 }]
-              }
-            }).addTo(map);
-          });
-
         }, () => alert("Location access denied or not available."));
       } else {
         alert("Geolocation is not supported by this browser.");
       }
     }
 
-    locateUser(); // Call on load
-  </script>
+    map.on('click', function(e) {
+      const destLatLng = e.latlng;
 
+      if (destinationMarker) map.removeLayer(destinationMarker);
+      if (routingControl) map.removeControl(routingControl);
+
+      destinationMarker = L.marker(destLatLng, { draggable: false })
+        .addTo(map)
+        .bindPopup("📍 Destination")
+        .openPopup();
+
+      if (currentLocationMarker) {
+        routingControl = L.Routing.control({
+          waypoints: [
+            currentLocationMarker.getLatLng(),
+            destLatLng
+          ],
+          routeWhileDragging: false,
+          lineOptions: {
+            styles: [{ color: '#ff6f61', weight: 5 }]
+          }
+        }).addTo(map);
+      } else {
+        alert("Please click 📍 Center to User first.");
+      }
+    });
+
+    function clearRoute() {
+      if (destinationMarker) map.removeLayer(destinationMarker);
+      if (routingControl) map.removeControl(routingControl);
+    }
+
+    // Auto locate on load
+    locateUser();
+  </script>
 </body>
 </html>
