@@ -7,6 +7,8 @@ import {
   Vibration,
   TouchableOpacity,
   ImageBackground,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -14,7 +16,7 @@ import axios from 'axios';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Voice from '@react-native-voice/voice';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { Accelerometer } from 'expo-sensors';
 
 export default function HomeScreen() {
   const [location, setLocation] = useState<any>(null);
@@ -41,54 +43,50 @@ export default function HomeScreen() {
   };
 
   const onSpeechResults = (e: any) => {
-    const spoken = e.value[0].toLowerCase();
-    console.log('🎤 Heard:', spoken);
-
-    if (
-      spoken.includes('help') ||
-      spoken.includes('sos') ||
-      spoken.includes('emergency')
-    ) {
-      manualSOS(); // 🚨 Trigger SOS
+    const spoken = e.value[0]?.toLowerCase() || '';
+    if (spoken.includes('help') || spoken.includes('sos') || spoken.includes('emergency')) {
+      manualSOS();
     }
   };
 
-  const onSpeechEnd = () => {
-    console.log('🎤 Speech ended, restarting...');
-    startListening(); // 🔁 Restart listening to keep it alive
-  };
-
-
   const onSpeechError = (e: any) => {
-    console.log('❌ Voice Error:', e);
-    // Try restarting voice if it stops unexpectedly
-    setTimeout(() => {
-      startListening();
-    }, 1000);
+    setTimeout(() => startListening(), 1000);
   };
 
   const startListening = async () => {
     try {
       await Voice.start('en-US');
-      console.log('🎤 Listening...');
     } catch (e) {
-      console.error('🔁 Voice start error:', e);
+      console.error('Voice start error:', e);
     }
   };
-
-
 
   const manualSOS = async () => {
+    let loc = location;
+    // If location is not already available, fetch it
     if (
-      !location ||
-      typeof location.latitude !== 'number' ||
-      typeof location.longitude !== 'number'
+      !loc ||
+      typeof loc.latitude !== 'number' ||
+      typeof loc.longitude !== 'number'
     ) {
-      Alert.alert('Location Error', 'Location not available. Try again.');
-      return;
+      try {
+        const latestLoc = await Location.getCurrentPositionAsync({});
+        if (latestLoc?.coords) {
+          loc = latestLoc.coords;
+          setLocation(loc); // update state
+        } else {
+          Alert.alert('Location Error', 'Could not fetch location');
+          return;
+        }
+      } catch (e) {
+        Alert.alert('Location Error', 'Could not get location for SOS.');
+        return;
+      }
     }
-    await sendSOS(location, 'Manual SOS triggered by user');
+
+    await sendSOS(loc, 'Manual SOS triggered by user or sensor');
   };
+
 
   const sendSOS = async (loc: any, notes: string) => {
     try {
@@ -101,7 +99,6 @@ export default function HomeScreen() {
       });
       Alert.alert('SOS Sent', 'Emergency message was sent.');
     } catch (error) {
-      console.log('Error:', error);
       Alert.alert('SOS Failed', 'Could not send emergency alert.');
     }
   };
@@ -114,11 +111,7 @@ export default function HomeScreen() {
     }
 
     let loc = await Location.getCurrentPositionAsync({});
-    if (
-      loc?.coords &&
-      typeof loc.coords.latitude === 'number' &&
-      typeof loc.coords.longitude === 'number'
-    ) {
+    if (loc?.coords && typeof loc.coords.latitude === 'number') {
       setLocation(loc.coords);
       lastLocationRef.current = loc.coords;
     } else {
@@ -132,13 +125,8 @@ export default function HomeScreen() {
     intervalRef.current = setInterval(async () => {
       try {
         let newLoc = await Location.getCurrentPositionAsync({});
-        if (
-          newLoc?.coords &&
-          typeof newLoc.coords.latitude === 'number' &&
-          typeof newLoc.coords.longitude === 'number'
-        ) {
+        if (newLoc?.coords) {
           setLocation(newLoc.coords);
-
           const distanceMoved =
             Math.abs(newLoc.coords.latitude - lastLocationRef.current.latitude) +
             Math.abs(newLoc.coords.longitude - lastLocationRef.current.longitude);
@@ -153,10 +141,8 @@ export default function HomeScreen() {
           if (unchangedTimeRef.current >= 60 && countdown === null) {
             triggerAlert(newLoc.coords);
           }
-        } else {
-          // Optionally alert or log
         }
-      } catch (error) {
+      } catch {
         Alert.alert('GPS Error', 'Could not fetch updated location.');
       }
     }, 10000);
@@ -174,7 +160,7 @@ export default function HomeScreen() {
   const triggerAlert = async (coords: any) => {
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } catch { }
+    } catch {}
     Vibration.vibrate([500, 500, 500]);
 
     if (Device.isDevice) {
@@ -204,22 +190,29 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    // Setup voice listeners
+    // Voice Recognition Setup
     Voice.onSpeechResults = onSpeechResults;
     Voice.onSpeechError = onSpeechError;
-    Voice.onSpeechEnd = onSpeechEnd;
+    requestMicPermission().then(startListening);
 
-    requestMicPermission().then(() => {
-      startListening(); // 🔁 Start listening
+
+    // Accelerometer detection
+    const accelSub = Accelerometer.addListener(({ x, y, z }) => {
+      const totalForce = Math.sqrt(x * x + y * y + z * z);
+      if (totalForce > 2.5) {
+        console.log('Accelerometer Triggered SOS');
+        manualSOS();
+      }
     });
+
+    Accelerometer.setUpdateInterval(300); // ms
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
-      Voice.destroy().then(Voice.removeAllListeners);
+      accelSub.remove();
     };
   }, []);
-
 
   return (
     <ImageBackground source={require('../../assets/background.png')} style={styles.background}>
@@ -253,6 +246,7 @@ export default function HomeScreen() {
               : '📍 Waiting for location...'}
           </Text>
         </View>
+
         {countdown !== null && (
           <Text style={styles.countdownText}>Auto SOS in {countdown}...</Text>
         )}
@@ -311,13 +305,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
     letterSpacing: 0.5,
-  },
-  text: {
-    marginTop: 60,
-    color: '#bbb',
-    fontSize: 14,
-    fontStyle: 'italic',
-    textAlign: 'center',
   },
   countdownText: {
     marginTop: 10,
