@@ -3,6 +3,18 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+from twilio.rest import Client
+
+TWILIO_SID = "AC91c4df2979105fcf14ce5a446a12d31f"
+TWILIO_AUTH = "6528c92e02a3f7b1ecd6199693fea2b1"
+TWILIO_PHONE = "+12792057151"  
+
+# Predefined emergency numbers
+EMERGENCY_NUMBERS = {
+    "Family & Friends": "9711567893",
+    "Ambulance": "6395526762",
+    "Police": "9354925538"
+}
 
 st.set_page_config(page_title="ALERTO Dashboard", layout="wide")
 st.title("🚨 ALERTO: Real-Time SOS Dashboard")
@@ -10,9 +22,31 @@ st.title("🚨 ALERTO: Real-Time SOS Dashboard")
 DB_PATH = "instance/alerts.db"
 
 # ----------------- DB Helpers ----------------- #
-def send_help(name, contact, targets):
+def send_help(name, contact, lat, lon, targets):
+    client = Client(TWILIO_SID, TWILIO_AUTH)
     for target in targets:
-        print(f"📤 Sending {target} help to {name} at {contact}")
+        number = EMERGENCY_NUMBERS.get(target)
+        if number:
+            try:
+                msg = (
+                    f"🚨 SOS Alert!\n"
+                    f"{name} ({contact}) needs help!\n"
+                    f"📍 {lat:.4f}, {lon:.4f}\n"
+                    f"🌐 https://maps.google.com/?q={lat},{lon}"
+                )
+
+
+                message = client.messages.create(
+                    body=msg,
+                    from_=TWILIO_PHONE,
+                    to=f"+91{number}"
+                )
+                print(f"✅ Sent to {target} ({number}) - SID: {message.sid}")
+            except Exception as e:
+                print(f"❌ Failed to send to {target}: {e}")
+        else:
+            print(f"⚠️ No number set for {target}")
+
 
 def get_connection():
     return sqlite3.connect(DB_PATH)
@@ -127,9 +161,9 @@ else:
                         if police: targets.append("Police")
 
                         if targets:
-                            send_help(row['name'], row['contact'], targets)
+                            send_help(row['name'], row['contact'], row['lat'], row['lon'], targets)
                             st.success(f"Help sent to {', '.join(targets)} for {row['name']}")
-                            st.session_state[help_key] = False
+                            st.session_state[help_key] = False      
                         else:
                             st.warning("Select at least one recipient.")
 
